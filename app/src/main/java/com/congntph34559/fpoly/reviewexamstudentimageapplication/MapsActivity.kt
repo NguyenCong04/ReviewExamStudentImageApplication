@@ -10,11 +10,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.location.Location
 import android.os.Bundle
+import android.text.Editable
 import android.text.TextUtils
+import android.text.TextWatcher
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -22,6 +25,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.widget.addTextChangedListener
 import com.congntph34559.fpoly.reviewexamstudentimageapplication.databinding.ActivityMapsBinding
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -37,6 +41,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONArray
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -46,6 +53,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMapsBinding
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private val TAG = "zzzzzMapsActivityzzzzz"
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -87,8 +95,92 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 1
             )
         }
+        binding.autoCompleteSearch.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+
+            }
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                fetchSuggestions(s.toString())
+            }
+
+            override fun afterTextChanged(s: Editable?) {
+
+            }
+
+        })
 
     }
+
+    private fun fetchSuggestions(query: String) {
+        if (query.length < 2) return
+
+        val apiKey = "vbj6PwUqjsrg1m5QluofFbzEI076r4axpXXEsuOH"
+        RetrofitInstance.api.getPlace(apiKey, query)
+            .enqueue(object : Callback<SuggestionResponse> {
+                override fun onResponse(
+                    call: Call<SuggestionResponse>,
+                    response: Response<SuggestionResponse>
+                ) {
+                    if (response.isSuccessful && response.body()?.status == "OK") {
+                        val suggestions = response.body()?.predictions ?: emptyList()
+                        Log.d(TAG, "onResponse: suggestions $suggestions ")
+                        val list = suggestions.map { it.description }
+                        Log.d(TAG, "onResponse: list $list")
+                        val adapter = ArrayAdapter(
+                            this@MapsActivity,
+                            android.R.layout.simple_list_item_1,
+                            list
+                        )
+                        binding.autoCompleteSearch.setAdapter(adapter)
+                        adapter.notifyDataSetChanged()
+                    } else {
+                        Log.e("Retrofit", "Response error: ${response.errorBody()?.string()}")
+                    }
+                }
+
+                override fun onFailure(call: Call<SuggestionResponse>, t: Throwable) {
+                    Log.e("Retrofit", "API call failed: ${t.message}")
+                }
+            })
+    }
+
+    private fun fetchSuggestions2(query: String) {
+        if (query.length < 2) return
+
+        val apiKey = "vbj6PwUqjsrg1m5QluofFbzEI076r4axpXXEsuOH"
+        val sessionToken = "SESSION_TOKEN"
+        val listAddress = mutableListOf<SuggestionResponse>()
+        RetrofitInstance.api.getPlace2(query)
+            .enqueue(object : Callback<SuggestSearchModel> {
+                override fun onResponse(
+                    call: Call<SuggestSearchModel>,
+                    response: Response<SuggestSearchModel>
+                ) {
+                    Log.d(TAG, "onResponse:response $response")
+                    Log.d(TAG, "onResponse:call $call")
+                    if (response.isSuccessful) {
+                        val suggestions = response.body()
+                        Log.d(TAG, "onResponse: suggestions $suggestions ")
+//                        Log.d(TAG, "onResponse: list $list")
+                    //                        val adapter = ArrayAdapter(
+//                            this@MapsActivity,
+//                            android.R.layout.simple_list_item_1,
+//
+//                        )
+//                        binding.autoCompleteSearch.setAdapter(adapter)
+//                        adapter.notifyDataSetChanged()
+                    } else {
+                        Log.e("Retrofit", "Response error: ${response.errorBody()?.string()}")
+                    }
+                }
+
+                override fun onFailure(call: Call<SuggestSearchModel>, t: Throwable) {
+                    Log.e("Retrofit", "API call failed: ${t.message}")
+                }
+            })
+    }
+
 
     override fun onRequestPermissionsResult(
         requestCode: Int, permissions: Array<out String>, grantResults: IntArray
@@ -267,6 +359,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         // Bước 5: Trả về BitmapDescriptor từ Bitmap đã tạo
         return BitmapDescriptorFactory.fromBitmap(bitmap)
     }
+
     fun createCustomMarkerWithLayoutXML(
         context: Context,
         text: String,
